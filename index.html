@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Visual Interactive Lab</title>
+    <!-- Tailwind CSS for Modern UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Transformers.js for In-Browser Vector Embeddings -->
+    <script type="module">
+        import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0';
+        window.pipeline = pipeline;
+        // Disable local model check to use CDN
+        env.allowLocalModels = false;
+    </script>
+    <style>
+        .step-card { @apply bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-6 transition-all; }
+        .progress-bar { @apply h-2 bg-blue-500 rounded-full transition-all duration-500; }
+        .chunk-box { @apply p-3 bg-slate-50 border border-slate-200 rounded text-sm font-mono mb-2; }
+        .highlight { @apply bg-yellow-100 border-yellow-400; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen pb-20">
+
+    <nav class="bg-white border-b border-slate-200 p-4 sticky top-0 z-10 shadow-sm">
+        <div class="max-w-5xl mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold text-blue-600 flex items-center gap-2">
+                <span>🔍</span> RAG Visual Explorer
+            </h1>
+            <div id="model-status" class="text-xs font-medium px-3 py-1 rounded-full bg-slate-100 text-slate-500">
+                Waiting for model...
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-4xl mx-auto mt-8 px-4">
+        
+        <!-- STEP 1: INPUT DATA -->
+        <section class="step-card">
+            <div class="flex items-center gap-3 mb-4">
+                <span class="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">1</span>
+                <h2 class="text-lg font-semibold">Enter Knowledge Base</h2>
+            </div>
+            <textarea id="raw-data" class="w-full h-32 p-4 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" 
+                placeholder="Paste your source text here (e.g., a technical doc, a story, or facts)..."></textarea>
+        </section>
+
+        <!-- STEP 2: CHUNKING -->
+        <section class="step-card">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <span class="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">2</span>
+                    <h2 class="text-lg font-semibold">Data Chunking</h2>
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="text-sm text-slate-500">Chunk Size:</label>
+                    <input type="number" id="chunk-size" value="200" class="w-16 p-1 border rounded text-sm">
+                </div>
+            </div>
+            <button onclick="processChunks()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors w-full sm:w-auto">
+                Generate Chunks
+            </button>
+            <div id="chunk-progress-container" class="mt-4 hidden">
+                <div class="w-full bg-slate-200 rounded-full h-2">
+                    <div id="chunk-progress" class="progress-bar w-0"></div>
+                </div>
+            </div>
+            <div id="chunks-display" class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2 max-h-60 overflow-y-auto p-2">
+                <!-- Chunks appear here -->
+            </div>
+        </section>
+
+        <!-- STEP 3: EMBEDDINGS & STORAGE -->
+        <section class="step-card">
+            <div class="flex items-center gap-3 mb-4">
+                <span class="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">3</span>
+                <h2 class="text-lg font-semibold">Vector Embeddings</h2>
+            </div>
+            <p class="text-sm text-slate-500 mb-4">Chunks are converted into numeric vectors (arrays of numbers) and stored in local memory.</p>
+            <button id="embed-btn" onclick="generateEmbeddings()" disabled class="bg-indigo-600 disabled:bg-slate-300 text-white px-6 py-2 rounded-lg font-medium w-full sm:w-auto">
+                Embed and Store
+            </button>
+            <div id="embed-progress-text" class="text-xs text-slate-400 mt-2"></div>
+        </section>
+
+        <!-- STEP 4: RETRIEVAL -->
+        <section class="step-card">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <span class="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">4</span>
+                    <h2 class="text-lg font-semibold">Query & Retrieval</h2>
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="text-sm text-slate-500">Top-K:</label>
+                    <input type="number" id="top-k" value="2" class="w-12 p-1 border rounded text-sm">
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <input type="text" id="user-query" class="flex-1 p-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ask a question about your data...">
+                <button onclick="performRetrieval()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-medium">Find Matches</button>
+            </div>
+            <div id="retrieval-results" class="mt-4">
+                <!-- Retrieval matches appear here -->
+            </div>
+        </section>
+
+        <!-- STEP 5 & 6: PROMPT & LLM -->
+        <section class="step-card border-l-4 border-l-blue-500 bg-blue-50">
+            <div class="flex items-center gap-3 mb-4">
+                <span class="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">5</span>
+                <h2 class="text-lg font-semibold">LLM Generation</h2>
+            </div>
+            
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">System Prompt Visualization</label>
+                <div id="final-prompt" class="p-4 bg-white border border-blue-200 rounded-lg text-sm text-slate-700 whitespace-pre-wrap italic">
+                    (Prompt will be constructed here...)
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">OpenAI API Key (Required for Step 6)</label>
+                <input type="password" id="api-key" class="w-full p-2 border rounded text-sm" placeholder="sk-...">
+            </div>
+
+            <button onclick="callLLM()" class="bg-slate-800 hover:bg-black text-white px-8 py-3 rounded-xl font-bold w-full shadow-lg transition-all transform active:scale-95">
+                Generate Final Answer 🚀
+            </button>
+
+            <div id="llm-response-container" class="mt-6 hidden">
+                <label class="block text-xs font-bold text-emerald-600 uppercase mb-1">LLM Output</label>
+                <div id="llm-response" class="p-5 bg-emerald-50 border border-emerald-200 rounded-xl text-slate-800 leading-relaxed">
+                    Thinking...
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        /**
+         * GLOBAL STATE & CONFIG
+         */
+        let extractor = null;
+        let chunks = [];
+        let chunkEmbeddings = [];
+        let retrievedContext = "";
+
+        // Initialize the Embedding Model (Transformers.js)
+        async function initModel() {
+            const status = document.getElementById('model-status');
+            try {
+                status.innerText = "⏳ Loading model (30MB)...";
+                // We use Xenova/all-MiniLM-L6-v2: light, fast, and great for embeddings
+                extractor = await window.pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+                status.innerText = "✅ Model Ready";
+                status.classList.replace('bg-slate-100', 'bg-green-100');
+                status.classList.replace('text-slate-500', 'text-green-700');
+                document.getElementById('embed-btn').disabled = false;
+            } catch (err) {
+                status.innerText = "❌ Error loading model";
+                console.error(err);
+            }
+        }
+        initModel();
+
+        /**
+         * STEP 2: CHUNKING LOGIC
+         * Splitting the raw text into smaller overlapping pieces.
+         */
+        function processChunks() {
+            const text = document.getElementById('raw-data').value;
+            const size = parseInt(document.getElementById('chunk-size').value);
+            const display = document.getElementById('chunks-display');
+            
+            if (!text) return alert("Please enter some data first!");
+
+            // Visual Feedback
+            document.getElementById('chunk-progress-container').classList.remove('hidden');
+            document.getElementById('chunk-progress').style.width = '100%';
+
+            // Simple Recursive-ish Splitter (Character based)
+            chunks = [];
+            for (let i = 0; i < text.length; i += size) {
+                chunks.push(text.slice(i, i + size));
+            }
+
+            // Display Chunks
+            display.innerHTML = chunks.map((c, i) => `
+                <div class="chunk-box" id="chunk-${i}">
+                    <span class="text-[10px] text-blue-500 font-bold">CHUNK #${i}</span><br>
+                    ${c}
+                </div>
+            `).join('');
+        }
+
+        /**
+         * STEP 3: EMBEDDING GENERATION
+         * Converts text to 384-dimension arrays.
+         */
+        async function generateEmbeddings() {
+            if (!chunks.length) return alert("Generate chunks first!");
+            const btn = document.getElementById('embed-btn');
+            const progressText = document.getElementById('embed-progress-text');
+            
+            btn.disabled = true;
+            chunkEmbeddings = [];
+
+            for (let i = 0; i < chunks.length; i++) {
+                progressText.innerText = `Encoding chunk ${i+1}/${chunks.length}...`;
+                
+                // Perform feature extraction
+                const output = await extractor(chunks[i], { pooling: 'mean', normalize: true });
+                chunkEmbeddings.push(Array.from(output.data));
+
+                // Visual highlight of the chunk being processed
+                document.getElementById(`chunk-${i}`).classList.add('bg-blue-100', 'border-blue-400');
+            }
+
+            progressText.innerText = `✅ Successfully embedded ${chunks.length} chunks. Stored in Memory.`;
+            btn.innerText = "Stored Successfully";
+        }
+
+        /**
+         * STEP 4: COSINE SIMILARITY & RETRIEVAL
+         * Math logic to find the closest chunks to the user's query.
+         */
+        async function performRetrieval() {
+            const query = document.getElementById('user-query').value;
+            const k = parseInt(document.getElementById('top-k').value);
+            if (!query || !chunkEmbeddings.length) return alert("Enter query and make sure data is embedded!");
+
+            // 1. Embed the user query
+            const queryOutput = await extractor(query, { pooling: 'mean', normalize: true });
+            const queryVector = Array.from(queryOutput.data);
+
+            // 2. Calculate Cosine Similarity against all chunks
+            const similarities = chunkEmbeddings.map((emb, idx) => {
+                return { index: idx, score: cosineSimilarity(queryVector, emb) };
+            });
+
+            // 3. Sort and pick top K
+            const topMatches = similarities.sort((a, b) => b.score - a.score).slice(0, k);
+
+            // 4. Update UI
+            const resultsDiv = document.getElementById('retrieval-results');
+            resultsDiv.innerHTML = '<h3 class="text-xs font-bold text-slate-400 mb-2 uppercase">Retrieved Context:</h3>';
+            
+            retrievedContext = "";
+            document.querySelectorAll('.chunk-box').forEach(el => el.classList.remove('highlight', 'ring-2', 'ring-emerald-500'));
+
+            topMatches.forEach(match => {
+                const chunkText = chunks[match.index];
+                retrievedContext += chunkText + "\n";
+                
+                // Highlight matches in the chunk display above
+                const el = document.getElementById(`chunk-${match.index}`);
+                el.classList.add('highlight', 'ring-2', 'ring-emerald-500');
+
+                resultsDiv.innerHTML += `
+                    <div class="p-2 bg-emerald-50 border-l-4 border-emerald-500 text-sm mb-2">
+                        <span class="font-bold text-emerald-700">Similarity: ${(match.score * 100).toFixed(1)}%</span><br>
+                        "${chunkText}"
+                    </div>
+                `;
+            });
+
+            // Update System Prompt (Step 5)
+            updatePrompt(query);
+        }
+
+        /**
+         * STEP 5: PROMPT CONSTRUCTION
+         */
+        function updatePrompt(query) {
+            const promptTemplate = `System: Answer the following user query based ONLY on the provided content.
+
+Content:
+"${retrievedContext}"
+
+User Query: "${query}"`;
+            
+            document.getElementById('final-prompt').innerText = promptTemplate;
+        }
+
+        /**
+         * STEP 6: LLM CALL
+         * Sending the context + query to OpenAI.
+         */
+        async function callLLM() {
+            const apiKey = document.getElementById('api-key').value;
+            const prompt = document.getElementById('final-prompt').innerText;
+            const responseContainer = document.getElementById('llm-response-container');
+            const responseDiv = document.getElementById('llm-response');
+
+            if (!apiKey) return alert("Please enter an OpenAI API key to see the final generation.");
+
+            responseContainer.classList.remove('hidden');
+            responseDiv.innerText = "Communicating with LLM...";
+
+            try {
+                const res = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: "gpt-3.5-turbo",
+                        messages: [{ role: "user", content: prompt }],
+                        temperature: 0.1
+                    })
+                });
+
+                const data = await res.json();
+                if (data.error) throw new Error(data.error.message);
+                
+                responseDiv.innerText = data.choices[0].message.content;
+            } catch (err) {
+                responseDiv.innerText = "Error: " + err.message;
+            }
+        }
+
+        /**
+         * MATH UTILS: Cosine Similarity
+         */
+        function cosineSimilarity(vecA, vecB) {
+            let dotProduct = 0;
+            let mA = 0;
+            let mB = 0;
+            for (let i = 0; i < vecA.length; i++) {
+                dotProduct += (vecA[i] * vecB[i]);
+                mA += (vecA[i] * vecA[i]);
+                mB += (vecB[i] * vecB[i]);
+            }
+            return dotProduct / (Math.sqrt(mA) * Math.sqrt(mB));
+        }
+    </script>
+</body>
+</html>
