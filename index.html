@@ -2,23 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>RAG Visual Learning Tool</title>
+  <title>Visual RAG Learning Tool</title>
 
-  <!-- =======================
-       BASIC MODERN STYLING
-       ======================= -->
+  <!-- ======================
+       BASIC MODERN STYLES
+       ====================== -->
   <style>
     body {
-      font-family: Inter, Arial, sans-serif;
+      font-family: Inter, system-ui, Arial, sans-serif;
       background: #0f172a;
       color: #e5e7eb;
-      margin: 0;
       padding: 24px;
+      margin: 0;
     }
 
     h1 {
       text-align: center;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .subtitle {
@@ -40,52 +40,56 @@
       font-size: 18px;
     }
 
-    textarea, input[type="file"] {
+    label {
+      display: block;
+      margin-top: 10px;
+      font-size: 14px;
+      color: #cbd5f5;
+    }
+
+    textarea, input[type="number"], input[type="file"] {
       width: 100%;
-      margin-top: 8px;
+      margin-top: 6px;
+      padding: 10px;
+      border-radius: 8px;
+      background: #020617;
+      color: #e5e7eb;
+      border: 1px solid #334155;
+      font-size: 14px;
     }
 
     textarea {
       height: 120px;
-      background: #020617;
-      color: #e5e7eb;
-      border: 1px solid #334155;
-      border-radius: 8px;
-      padding: 10px;
-    }
-
-    input[type="range"] {
-      width: 100%;
     }
 
     button {
-      margin-top: 12px;
-      padding: 10px 14px;
+      margin-top: 14px;
+      padding: 10px 16px;
       background: #2563eb;
       border: none;
       border-radius: 8px;
       color: white;
-      cursor: pointer;
       font-weight: 600;
+      cursor: pointer;
     }
 
     button:hover {
       background: #1d4ed8;
     }
 
-    .progress {
+    .status {
+      margin-top: 8px;
+      font-size: 13px;
       color: #22c55e;
-      font-size: 14px;
-      margin-top: 6px;
     }
 
-    .output-box {
+    .output {
       background: #020617;
       border: 1px dashed #334155;
       border-radius: 8px;
-      padding: 10px;
+      padding: 12px;
       margin-top: 12px;
-      max-height: 220px;
+      max-height: 240px;
       overflow-y: auto;
       font-size: 13px;
       white-space: pre-wrap;
@@ -101,8 +105,9 @@
       color: #38bdf8;
     }
 
-    .highlight {
+    .score {
       color: #facc15;
+      font-weight: 600;
     }
   </style>
 </head>
@@ -110,107 +115,115 @@
 <body>
 
 <h1>🔍 RAG Visual Learning Tool</h1>
-<p class="subtitle">Understand Retrieval-Augmented Generation step by step</p>
+<p class="subtitle">Learn Retrieval-Augmented Generation step by step</p>
 
-<!-- =======================
-     STEP 1: DATA INPUT
-     ======================= -->
+<!-- ======================
+     STEP 1: INPUT DATA
+     ====================== -->
 <div class="section">
   <h2>1️⃣ Input Data</h2>
-  <p>Paste text or upload a <b>.txt / .pdf</b> file</p>
 
-  <textarea id="inputText" placeholder="Paste your text here..."></textarea>
+  <label>Paste your text</label>
+  <textarea id="inputText" placeholder="Paste any text here..."></textarea>
+
+  <label>Or upload a file (.txt / .pdf)</label>
   <input type="file" id="fileInput" accept=".txt,.pdf" />
 
-  <div id="inputStatus" class="progress"></div>
+  <div id="inputStatus" class="status"></div>
 </div>
 
-<!-- =======================
+<!-- ======================
      STEP 2: CHUNKING
-     ======================= -->
+     ====================== -->
 <div class="section">
   <h2>2️⃣ Chunking</h2>
 
-  <label>Chunk Size (max 50 words)</label>
-  <input type="range" id="chunkSize" min="5" max="50" value="20" />
+  <label>Chunk size (max 50 words)</label>
+  <input type="number" id="chunkSize" max="50" min="5" value="20" />
 
-  <label>Overlap (max 10 words)</label>
-  <input type="range" id="overlapSize" min="0" max="10" value="5" />
+  <label>Overlap size (max 10 words)</label>
+  <input type="number" id="overlapSize" max="10" min="0" value="5" />
 
   <button onclick="createChunks()">Create Chunks</button>
-  <div id="chunkStatus" class="progress"></div>
-  <div id="chunksOutput" class="output-box"></div>
+
+  <div id="chunkStatus" class="status"></div>
+  <div id="chunksOutput" class="output"></div>
 </div>
 
-<!-- =======================
+<!-- ======================
      STEP 3: EMBEDDINGS
-     ======================= -->
+     ====================== -->
 <div class="section">
   <h2>3️⃣ Vector Embeddings</h2>
-  <button onclick="createEmbeddings()">Generate Embeddings</button>
-  <div id="embeddingStatus" class="progress"></div>
-  <div id="embeddingsOutput" class="output-box"></div>
+
+  <button onclick="generateEmbeddings()">Generate Embeddings</button>
+
+  <div id="embeddingStatus" class="status"></div>
+  <div id="embeddingsOutput" class="output"></div>
 </div>
 
-<!-- =======================
+<!-- ======================
      STEP 4: RETRIEVAL
-     ======================= -->
+     ====================== -->
 <div class="section">
-  <h2>4️⃣ Query & Retrieval</h2>
+  <h2>4️⃣ Query & Top-K Retrieval</h2>
 
-  <textarea id="queryInput" placeholder="Enter your query..."></textarea>
+  <label>User Query</label>
+  <textarea id="queryInput" placeholder="Ask a question..."></textarea>
 
-  <label>Top-K Chunks (max 5)</label>
-  <input type="range" id="topK" min="1" max="5" value="3" />
+  <label>Top-K chunks to retrieve (max 5)</label>
+  <input type="number" id="topK" max="5" min="1" value="3" />
 
   <button onclick="retrieveChunks()">Retrieve Relevant Chunks</button>
-  <div id="retrievalOutput" class="output-box"></div>
+
+  <div id="retrievalOutput" class="output"></div>
 </div>
 
-<!-- =======================
+<!-- ======================
      STEP 5 & 6: PROMPT + ANSWER
-     ======================= -->
+     ====================== -->
 <div class="section">
   <h2>5️⃣ Prompt → LLM → Answer</h2>
+
   <button onclick="generateAnswer()">Generate Answer</button>
-  <div id="finalAnswer" class="output-box"></div>
+
+  <div id="finalOutput" class="output"></div>
 </div>
 
 <script>
-/* =======================
+/* ======================
    GLOBAL STATE
-   ======================= */
+   ====================== */
 let rawText = "";
 let chunks = [];
 let embeddings = [];
-let retrievedChunks = [];
+let topChunks = [];
 
-/* =======================
-   FILE HANDLING
-   ======================= */
+/* ======================
+   FILE INPUT HANDLING
+   ====================== */
 document.getElementById("fileInput").addEventListener("change", async (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
   if (file.type === "text/plain") {
     rawText = await file.text();
+    document.getElementById("inputText").value = rawText;
+    document.getElementById("inputStatus").innerText = "✅ Text file loaded";
   } else {
-    alert("PDF parsing is intentionally skipped to keep this demo simple.");
+    alert("PDF parsing is skipped to keep this demo simple.");
   }
-
-  document.getElementById("inputText").value = rawText;
-  document.getElementById("inputStatus").innerText = "✅ Data loaded";
 });
 
-/* =======================
-   STEP 2: CHUNKING LOGIC
-   ======================= */
+/* ======================
+   STEP 2: CHUNK CREATION
+   ====================== */
 function createChunks() {
-  rawText = document.getElementById("inputText").value;
+  rawText = document.getElementById("inputText").value.trim();
   if (!rawText) return;
 
-  const chunkSize = +document.getElementById("chunkSize").value;
-  const overlap = +document.getElementById("overlapSize").value;
+  const chunkSize = Number(document.getElementById("chunkSize").value);
+  const overlap = Number(document.getElementById("overlapSize").value);
 
   const words = rawText.split(/\s+/);
   chunks = [];
@@ -220,23 +233,25 @@ function createChunks() {
   }
 
   document.getElementById("chunkStatus").innerText =
-    `✅ Created ${chunks.length} chunks`;
+    `✅ ${chunks.length} chunks created`;
 
   document.getElementById("chunksOutput").innerHTML =
-    chunks.map((c, i) => `<div class="chunk"><b>Chunk ${i + 1}:</b> ${c}</div>`).join("");
+    chunks.map((c, i) =>
+      `<div class="chunk"><b>Chunk ${i + 1}</b><br>${c}</div>`
+    ).join("");
 }
 
-/* =======================
+/* ======================
    STEP 3: EMBEDDINGS
-   ======================= */
-function createEmbeddings() {
-  embeddings = chunks.map(chunk => {
-    // Fake but realistic embedding (10-D vector)
-    return Array.from({ length: 10 }, () => Math.random().toFixed(2));
-  });
+   ====================== */
+function generateEmbeddings() {
+  // Create fake but realistic embeddings (10-dimensional vectors)
+  embeddings = chunks.map(() =>
+    Array.from({ length: 10 }, () => Math.random().toFixed(3))
+  );
 
-  // Store locally to simulate vector DB
-  localStorage.setItem("embeddings", JSON.stringify(embeddings));
+  // Store embeddings in localStorage (simulating a vector DB)
+  localStorage.setItem("vectorDB", JSON.stringify(embeddings));
 
   document.getElementById("embeddingStatus").innerText =
     "✅ Embeddings generated & stored locally";
@@ -247,10 +262,10 @@ function createEmbeddings() {
     ).join("");
 }
 
-/* =======================
+/* ======================
    COSINE SIMILARITY
-   ======================= */
-function cosineSim(a, b) {
+   ====================== */
+function cosineSimilarity(a, b) {
   let dot = 0, magA = 0, magB = 0;
   for (let i = 0; i < a.length; i++) {
     dot += a[i] * b[i];
@@ -260,61 +275,60 @@ function cosineSim(a, b) {
   return dot / (Math.sqrt(magA) * Math.sqrt(magB));
 }
 
-/* =======================
+/* ======================
    STEP 4: RETRIEVAL
-   ======================= */
+   ====================== */
 function retrieveChunks() {
-  const topK = +document.getElementById("topK").value;
+  const k = Number(document.getElementById("topK").value);
 
   // Fake query embedding
-  const queryEmbedding = Array.from({ length: 10 }, () => Math.random());
+  const queryEmbedding =
+    Array.from({ length: 10 }, () => Math.random());
 
   const scored = embeddings.map((e, i) => ({
     chunk: chunks[i],
-    score: cosineSim(
-      e.map(Number),
-      queryEmbedding
-    )
+    score: cosineSimilarity(e.map(Number), queryEmbedding)
   }));
 
-  retrievedChunks = scored
+  topChunks = scored
     .sort((a, b) => b.score - a.score)
-    .slice(0, topK);
+    .slice(0, k);
 
   document.getElementById("retrievalOutput").innerHTML =
-    retrievedChunks.map(r =>
-      `<div><span class="highlight">Score:</span> ${r.score.toFixed(3)}<br>${r.chunk}</div><hr>`
+    topChunks.map(c =>
+      `<div>
+        <span class="score">Score: ${c.score.toFixed(3)}</span><br>
+        ${c.chunk}
+      </div><hr>`
     ).join("");
 }
 
-/* =======================
-   STEP 5 & 6: PROMPT + ANSWER
-   ======================= */
+/* ======================
+   STEP 5 & 6: PROMPT + LLM
+   ====================== */
 function generateAnswer() {
   const query = document.getElementById("queryInput").value;
 
   const prompt = `
 You are an AI assistant.
-Use the context below to answer the question.
+Answer the question using only the context below.
 
 Context:
-${retrievedChunks.map(c => "- " + c.chunk).join("\n")}
+${topChunks.map(c => "- " + c.chunk).join("\n")}
 
 Question:
 ${query}
 `;
 
   // Simulated LLM response
-  const answer = `
-🧠 Generated Answer (Simulated):
+  const answer =
+`🧠 Generated Answer (Simulated)
 
-Based on the retrieved chunks, the answer to your question
-is constructed using the most relevant context available.
-
-(This simulates how RAG feeds context into an LLM.)
+The answer is created using the retrieved Top-K chunks.
+This shows how RAG grounds LLM responses in external data.
 `;
 
-  document.getElementById("finalAnswer").innerText =
+  document.getElementById("finalOutput").innerText =
     "PROMPT SENT TO LLM:\n" + prompt + "\n\n" + answer;
 }
 </script>
